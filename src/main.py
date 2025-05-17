@@ -1,15 +1,17 @@
-from fastapi import FastAPI, Depends
-from sqlalchemy import select
+from contextlib import asynccontextmanager
 
-from core.database import get_db
-from models.poll import Poll
+from fastapi import FastAPI
 
-
-app = FastAPI()
+from api.v1.vectorizations import vectorizations_router
+from dependencies.vectorizer import get_text2vec_model
 
 
-@app.get("/all-polls")
-async def get_all_polls(db =  Depends(get_db)):
-    result = await db.execute(select(Poll))
-    polls = result.scalars().all()
-    return polls
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    get_text2vec_model()
+    yield
+    
+app = FastAPI(title="Poll Recommender Service", lifespan=lifespan)
+
+app.include_router(vectorizations_router)
+
