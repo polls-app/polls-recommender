@@ -1,9 +1,29 @@
 import numpy as np
+from uuid import UUID
 from hashlib import md5
 
-from schemas.vectorizations import VectorizePollSchema
+from fastapi import Depends
+
+from schemas import VectorizePollSchema, RecommendationDTO
+from repositories import PollRepository
+from dependencies import get_text2vec_model
 from core.recsys_config import LANG_CODES, CATEGORIES, WEIGHTS
-from dependencies.vectorizer import get_text2vec_model
+
+
+class RecommendationService:
+    def __init__(self, poll_repo: PollRepository = Depends()):
+        self.poll_repo = poll_repo
+
+    async def get_personalized_recommendations(self, user_id: UUID) -> list[RecommendationDTO]:
+        passed_polls = await self.poll_repo.get_polls_passed_by_user(user_id)
+        embeddings, excluded_polls = [], []
+
+        for poll in passed_polls:
+            embeddings.append(poll.embedding)
+            excluded_polls.append(poll.id)
+
+        user_vector = np.mean(embeddings, axis=0).tolist()
+        return await self.poll_repo.get_similar_polls(user_vector, excluded_polls)
 
 
 class PollVectorizer:
