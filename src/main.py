@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Poll Recommender Service", lifespan=lifespan)
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 @app.post(
@@ -65,18 +65,51 @@ def vectorize_poll(
         }
 )
 async def recommend_polls(sort: Literal["best", "hot", "controversial"],
+                          cursor: str | None = None,
+                          limit: int = 5,
                           recommendation_service: RecommendationService = Depends(),
-                          credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    user_id = jwt.get_unverified_claims(token).get("sub")
-
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token: 'sub' claim is missing",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) 
+                          credentials: HTTPAuthorizationCredentials | None = Depends(security)
+                          ):
+     
     
     if sort == "best":
+        if credentials is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required for personalized recommendations",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+
+        token = credentials.credentials
+        user_id = jwt.get_unverified_claims(token).get("sub")
+
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token: 'sub' claim is missing",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        
         return await recommendation_service.get_personalized_recommendations(user_id)
+    elif sort == "hot":
+        try:
+            result = await recommendation_service.get_polls_sorted_by_votes(
+                cursor=cursor,
+                limit=limit
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+
+        return {
+            "data": result["polls"],
+            "pagination": {
+                "next_cursor": result["next_cursor"],
+                "has_next": result["has_next"],
+                "limit": limit
+            }
+        }
+
     return {"message": "Temporarily not implemented"}

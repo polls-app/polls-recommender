@@ -42,5 +42,35 @@ class RecommendationDTO(BaseModel):
     options: list[OptionInRecommendationDTO]
     number_of_shares: int
     created_at: datetime
-    author_avatar: str
+    author_avatar: str | None
     author_full_name: str
+
+    @classmethod
+    def model_validate(cls, poll):
+        """Custom validation to handle Poll model conversion"""
+        full_name = ""
+        avatar_path = ""
+        
+        if poll.user and poll.user.profile:
+            profile = poll.user.profile
+            full_name = profile.first_name
+            if profile.last_name:
+                full_name += f" {profile.last_name}"
+            avatar_path = profile.avatar_path or None
+        
+        return cls(
+            id=poll.id,
+            title=poll.title,
+            options=[
+                OptionInRecommendationDTO(
+                    id=option.id,
+                    content=option.content,
+                    position=option.position,
+                    is_correct=option.is_correct
+                ) for option in poll.options
+            ],
+            number_of_shares=poll.number_of_shares,
+            created_at=poll.created_at,
+            author_avatar=avatar_path,
+            author_full_name=full_name
+        )

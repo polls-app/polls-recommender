@@ -25,6 +25,16 @@ class RecommendationService:
         user_vector = np.mean(embeddings, axis=0).tolist()
         return await self.poll_repo.get_similar_polls(user_vector, excluded_polls)
 
+    async def get_polls_sorted_by_votes(
+        self, 
+        cursor: str | None, 
+        limit: int = 5
+    ) -> dict:
+        """
+        Get non-personalized recommendations sorted by vote count.
+        Uses keyset pagination for efficient pagination
+        """
+        return await self.poll_repo.get_polls_by_votes_paginated(cursor=cursor, limit=limit)
 
 class PollVectorizer:
     def __init__(self):
