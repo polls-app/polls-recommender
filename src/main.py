@@ -91,9 +91,10 @@ async def recommend_polls(sort: Literal["best", "hot", "controversial"],
             )
         
         return await recommendation_service.get_personalized_recommendations(user_id)
-    elif sort == "hot":
+    elif sort in ["hot", "controversial"]:
         try:
-            result = await recommendation_service.get_polls_sorted_by_votes(
+            result = await recommendation_service.get_sorted_polls(
+                by=sort,
                 cursor=cursor,
                 limit=limit
             )
