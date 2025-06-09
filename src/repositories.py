@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Literal
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,7 +7,7 @@ from sqlalchemy import select, func, desc, and_, or_
 from sqlalchemy.orm import selectinload
 
 from core.database import get_db
-from models import Poll, Option, Vote, User
+from models import Poll, Option, Vote, User, Comment
 from schemas import PollToComputeUserVector, RecommendationDTO, OptionInRecommendationDTO
 
 
@@ -59,8 +60,9 @@ class PollRepository():
             author_full_name=f"{poll.user.profile.first_name} {poll.user.profile.last_name}"
         ) for poll in polls]
     
-    async def get_polls_by_votes_paginated(
-        self, 
+    async def get_sorted_polls_paginated(
+        self,
+        by: Literal["hot", "controversial"], 
         cursor: str | None, 
         limit: int = 5
     ) -> dict:
@@ -68,7 +70,7 @@ class PollRepository():
         Get polls sorted by vote count with keyset pagination.
         Returns DTOs and pagination info
         """
-        polls_data = await self._get_polls_by_votes_raw(cursor=cursor, limit=limit + 1)
+        polls_data = await self._get_polls_raw(by=by, cursor=cursor, limit=limit + 1)
         
         # Check if there are more results
         has_next = len(polls_data) > limit
@@ -90,8 +92,9 @@ class PollRepository():
             "has_next": has_next
         }
     
-    async def _get_polls_by_votes_raw(
-        self, 
+    async def _get_polls_raw(
+        self,
+        by: Literal["hot", "controversial"], 
         cursor: str | None, 
         limit: int = 5
     ) -> list[Poll]:
@@ -99,11 +102,23 @@ class PollRepository():
         Get polls sorted by vote count with keyset pagination
         """
 
+        if by == "hot":
+            count_expr = func.count(func.distinct(Vote.user_id)).label('sort_metric')
+            query = (
+                select(Poll, count_expr)
+                .join(Option, Poll.id == Option.poll_id)
+                .outerjoin(Vote, Option.id == Vote.option_id)
+            )
+        elif by == "controversial":
+            count_expr = func.count(Comment.user_id).label('sort_metric')
+            query = (
+                select(Poll, count_expr)
+                .join(Option, Poll.id == Option.poll_id)
+                .outerjoin(Comment, Poll.id == Comment.poll_id)
+            )
+
         query = (
-            select(Poll, func.count(func.distinct(Vote.user_id)).label('vote_count'))
-            .join(Option, Poll.id == Option.poll_id)
-            .outerjoin(Vote, Option.id == Vote.option_id)
-            .group_by(Poll.id)
+            query.group_by(Poll.id)
             .options(
                 selectinload(Poll.options),
                 selectinload(Poll.user).selectinload(User.profile),
@@ -114,14 +129,14 @@ class PollRepository():
         # Apply cursor-based pagination
         if cursor:
             try:
-                cursor_vote_count, cursor_poll_id = cursor.split('_', 1)
-                cursor_vote_count = int(cursor_vote_count)
+                cursor_elem_count, cursor_poll_id = cursor.split('_', 1)
+                cursor_elem_count = int(cursor_elem_count)
                 
                 query = query.having(
                     or_(
-                        func.count(func.distinct(Vote.user_id)) < cursor_vote_count,
+                        count_expr < cursor_elem_count,
                         and_(
-                            func.count(func.distinct(Vote.user_id)) == cursor_vote_count,
+                            count_expr == cursor_elem_count,
                             Poll.id > cursor_poll_id
                         )
                     )
@@ -130,7 +145,7 @@ class PollRepository():
                 raise ValueError("Invalid cursor format.")
         
         query = query.order_by(
-            desc(func.count(func.distinct(Vote.user_id))),
+            desc(count_expr),
             Poll.id
         )
         

@@ -1,6 +1,7 @@
 import numpy as np
 from uuid import UUID
 from hashlib import md5
+from typing import Literal
 
 from fastapi import Depends
 
@@ -25,8 +26,9 @@ class RecommendationService:
         user_vector = np.mean(embeddings, axis=0).tolist()
         return await self.poll_repo.get_similar_polls(user_vector, excluded_polls)
 
-    async def get_polls_sorted_by_votes(
-        self, 
+    async def get_sorted_polls(
+        self,
+        by: Literal["hot", "controversial"],
         cursor: str | None, 
         limit: int = 5
     ) -> dict:
@@ -34,7 +36,7 @@ class RecommendationService:
         Get non-personalized recommendations sorted by vote count.
         Uses keyset pagination for efficient pagination
         """
-        return await self.poll_repo.get_polls_by_votes_paginated(cursor=cursor, limit=limit)
+        return await self.poll_repo.get_sorted_polls_paginated(by=by, cursor=cursor, limit=limit)
 
 class PollVectorizer:
     def __init__(self):

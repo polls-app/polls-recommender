@@ -97,3 +97,18 @@ class Share(Base):
     poll_id: Mapped[str] = mapped_column(UUID, ForeignKey("polls.id"), primary_key=True)
 
     poll: Mapped["Poll"] = relationship("Poll", back_populates="shares")
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True)
+    content: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    parent_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("comments.id"))
+    poll_id: Mapped[str] = mapped_column(UUID, ForeignKey("polls.id"))
+    user_id: Mapped[str] = mapped_column(UUID, ForeignKey("users.id"))
+
+    poll: Mapped["Poll"] = relationship("Poll")
+    user: Mapped["User"] = relationship("User")
