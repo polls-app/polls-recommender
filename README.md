@@ -27,6 +27,8 @@ This repository contains the code for a personalized recommendation service used
    DB_NAME="your-db-name"
    DB_USER="your-username"
    DB_PASSWORD="your-password"
+   FRONTEND_URL="your-frontend-url"
+   MICROSERVICE_URL="your-microservice-url"
    ```
 
 ## Running the Project

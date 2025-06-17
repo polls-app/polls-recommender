@@ -4,10 +4,12 @@ from contextlib import asynccontextmanager
 from jose import jwt
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
 
 from dependencies import get_text2vec_model
 from services import PollVectorizer, RecommendationService
 from schemas import VectorizePollResponse, VectorizePollSchema, RecommendationDTO
+from core.settings import settings
 
 
 @asynccontextmanager
@@ -17,6 +19,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Poll Recommender Service", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.frontend_url, settings.microservice_url],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 security = HTTPBearer(auto_error=False)
 
 
