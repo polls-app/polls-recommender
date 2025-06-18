@@ -29,6 +29,30 @@ class PollRepository():
         
         return PollRepository._models_to_dtos(result.scalars().all(), PollToComputeUserVector)
     
+    async def get_passed_polls_by_user_id(self, user_id: UUID) -> list[RecommendationDTO]:
+        query = (
+            select(Poll)
+            .join(Option, Poll.id == Option.poll_id)
+            .join(Vote, Option.id == Vote.option_id)
+            .where(Vote.user_id == user_id)
+            .options(
+                selectinload(Poll.options),
+                selectinload(Poll.user).selectinload(User.profile),
+                selectinload(Poll.shares)
+            )
+            .distinct()
+        )
+
+        result = await self.db.execute(query)
+        polls = result.scalars().all()
+
+        passed_polls = []
+        for poll in polls:
+            poll.number_of_shares = len(poll.shares) if poll.shares else 0
+            passed_polls.append(RecommendationDTO.model_validate(poll))
+
+        return passed_polls
+
     async def get_similar_polls(self, user_vector: list[float], polls_to_exclude: list[UUID]) -> list[RecommendationDTO]:
         similar_polls = (
             select(Poll)

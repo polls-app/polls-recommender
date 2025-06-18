@@ -7,6 +7,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 
 from dependencies import get_text2vec_model
+from repositories import PollRepository
 from services import PollVectorizer, RecommendationService
 from schemas import VectorizePollResponse, VectorizePollSchema, RecommendationDTO
 from core.settings import settings
@@ -63,6 +64,35 @@ def vectorize_poll(
         },
         "message": "Vector retrieved successfully"
         }
+
+
+@app.get(
+    "/api/v1/polls/completed",
+    summary="Get polls passed by the user",
+    tags=["polls"]
+)
+async def get_passed_polls_by_user_id(
+    poll_repository: PollRepository = Depends(),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+    ):
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for this endpoint",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    token = credentials.credentials
+    user_id = jwt.get_unverified_claims(token).get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: 'sub' claim is missing",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    return await poll_repository.get_passed_polls_by_user_id(user_id)
 
 
 @app.get(
